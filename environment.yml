@@ -1,0 +1,24 @@
+#trains only on python=3.8.5 ,but  for intensity-normalization[ants] is req3.9 
+name: tf2_py39
+dependencies:
+- python=3.9
+- pip
+- pip:
+    - pandas    
+    - scipy
+    - numpy
+    - scikit-image
+    - scikit-learn
+    - tensorflow==2.10
+    - matplotlib
+    - tqdm
+    - imageio
+    - opencv-python
+    - nilearn
+    - itk-elastix
+    - SimpleITK
+    - nibabel
+    - intensity-normalization[ants]
+    - jupyter
+    - wandb
+    - matplotlib-label-lines
