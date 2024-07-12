@@ -13,6 +13,6 @@ Age (float)
 docker run \
   -v /path/to/input/directory:/input \
   -v /path/to/output/directory:/output \
-  image_name \
+  mri2circ \
   python3.9 /executables/process_image.py \
   /input/input_file.nii.gz age /output
