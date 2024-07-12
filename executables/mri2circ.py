@@ -182,7 +182,7 @@ except Exception as e:
 # enchance and zscore normalize image
 if not os.path.exists(new_path_to+"/no_z"):
     os.mkdir(new_path_to+"/no_z")
-print(new_path_to)
+print(f"new_path_to {new_path_to}")
 image_sitk =  sitk.ReadImage(new_path_to+"/registered.nii.gz")
 #image_sitk = sitk.ReadImage("/Users/philipmattisson/Desktop/Centile/software/git/itmt/output/sub-pixar066_anat_sub-pixar066_T1w/registered.nii.gz")
 image_array  = sitk.GetArrayFromImage(image_sitk)

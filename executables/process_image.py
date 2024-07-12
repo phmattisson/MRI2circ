@@ -46,7 +46,7 @@ physical_devices = tf.config.experimental.list_physical_devices('GPU')
 def select_template_based_on_age(age):
     age_ranges = {"../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
             "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
-            "../app/shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
+            "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
     for golden_file_path, age_values in age_ranges.items():
         if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
             print(golden_file_path)
@@ -60,7 +60,7 @@ def register_to_template(input_image_path, output_path, fixed_image_path,create_
     parameter_object = itk.ParameterObject.New()
     print(f"parameter {fixed_image_path}")
     #parameter_object.AddParameterFile('data/golden_image/mni_templates/Parameters_Rigid.txt')
-    parameter_object.AddParameterFile('/app/shared_data/mni_templates/Parameters_Rigid.txt')
+    parameter_object.AddParameterFile('../shared_data/mni_templates/Parameters_Rigid.txt')
     print(f"input image path {input_image_path}")
     if "nii" in input_image_path and "._" not in input_image_path:
         print(f"before try")
@@ -68,58 +68,34 @@ def register_to_template(input_image_path, output_path, fixed_image_path,create_
         # Call registration function
         try:        
             moving_image = itk.imread(input_image_path, itk.F)
-            print(f"moving image {moving_image}")
             result_image, result_transform_parameters = itk.elastix_registration_method(
                 fixed_image, moving_image,
                 parameter_object=parameter_object,
                 log_to_console=False)
-            print(f"result image {result_image}")
             image_id = input_image_path.split("/")[-1]
             
             if create_subfolder:
                 print("in create subfodler ")
-                new_dir = output_path+image_id.split(".")[0]
+                new_dir = output_path+'/' + image_id.split(".")[0]
                 print(f'image id {image_id}')
                 print(f'new dir {new_dir}') 
+                new_path_to = new_dir+"/"+'registered.nii.gz'
+                register_dir = new_dir
                 if not os.path.exists(new_dir):
                     os.mkdir(new_dir)
-                itk.imwrite(result_image, new_dir+"/"+'registered.nii.gz')
+                itk.imwrite(result_image,new_path_to)
+                print("Registered ", image_id)
+                print(new_path_to)
+                return register_dir,new_path_to
             else:
-                itk.imwrite(result_image, output_path+"/"+'registered.nii.gz')
-                
-            print("Registered ", image_id)
+                new_path_to = output_path+"/"+'registered.nii.gz'
+                itk.imwrite(result_image, new_path_to)
+                print("Registered ", image_id)
+                return register_dir,new_path_to
+
+            
         except:
             print("Cannot transform", input_image_path.split("/")[-1])
-
-
-'''
-def register_to_template_cmd(input_image_path, output_path, fixed_image_path,rename_id,create_subfolder=True):
-    if "nii" in input_image_path and "._" not in input_image_path:
-        try:
-            """
-            return_code = subprocess.call("elastix -f "+fixed_image_path+" -m "+input_image_path+" -out "+\
-            output_path + " -p ../shared_data/mni_templates/Parameters_Rigid.txt", shell=True,\
-            stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-            """
-            return_code = subprocess.call("/Users/philipmattisson/Desktop/Centile/software/elastix-5.1.0-mac/bin/elastix -f " +
-                                           fixed_image_path + " -m " + input_image_path + " -out " 
-                                           + output_path + " -p /Users/philipmattisson/Desktop/Centile/software/git/itmt/shared_data/mni_templates/Parameters_Rigid.txt", 
-                                           shell=True, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL)
-            print(return_code)
-
-            if return_code == 0:
-                print("Registered ", rename_id)
-                result_image = itk.imread(output_path+'/result.0.mhd',itk.F)
-                itk.imwrite(result_image, output_path+"/"+rename_id+".nii.gz")
-            else:
-                print("Error registering ", rename_id)
-                return_code = 1
-        except Exception as e:
-            print("is elastix installed?")
-            print("An error occurred:", e)
-            traceback.print_exc()
-            return_code = 1
-'''
 
 
 
@@ -156,36 +132,39 @@ def main(img_path, age,output_path):
 
         # load image
     image, affine = load_nii(img_path)
-    print(nib.aff2axcodes(affine))
+    
 
     # path to store registered image in
     
-    new_path_to = path_to+img_path.split("/")[-1].split(".")[0]
-
-    '''
+    #new_path_to = path_to+img_path.split("/")[-1].split(".")[0]
+    patient_id = img_path.split("/")[-1].split(".")[0]
+    new_path_to = path_to+patient_id
+    if not os.path.exists(path_to):
+        os.mkdir(path_to)
     if not os.path.exists(new_path_to):
-        os.mkdir(new_path_to)
-    print(f'new path to{new_path_to}')
-    '''
+            os.mkdir(new_path_to)
     #new_path_to = "/Users/philipmattisson/Desktop/Centile/software/git/itmt/output/test_output"
     # register image to MNI template
+    print(f"new path to {new_path_to}")
     golden_file_path = select_template_based_on_age(age)
     #golden_file_path = "/Users/philipmattisson/Desktop/Centile/software/git/itmt/shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii"
     print("Registering to template:", golden_file_path)
    
-    result = register_to_template(img_path, output_path, golden_file_path)
+    new_dir,new_path_to = register_to_template(img_path, output_path, golden_file_path)
     #Load the registered image
     # enchance and zscore normalize image
-    if not os.path.exists(new_path_to+"/no_z"):
-        os.mkdir(new_path_to+"/no_z")
+    if not os.path.exists(new_dir+"/no_z"):
+        os.mkdir(new_dir+"/no_z")
+
     print(new_path_to)
-    image_sitk =  sitk.ReadImage(new_path_to+"/registered.nii.gz")
+    
+    image_sitk =  sitk.ReadImage(new_path_to) #+ "/registered.nii.gz")
     image_array  = sitk.GetArrayFromImage(image_sitk)
     image_array = enhance_noN4(image_array)
     image3 = sitk.GetImageFromArray(image_array)
 
-    sitk.WriteImage(image3,new_path_to+"/no_z/registered_no_z.nii") 
-    cmd_line = "zscore-normalize "+new_path_to+"/no_z/registered_no_z.nii -o "+new_path_to+'/registered_z.nii'
+    sitk.WriteImage(image3,new_dir+"/no_z/registered_no_z.nii") 
+    cmd_line = "zscore-normalize "+new_dir+"/no_z/registered_no_z.nii -o "+new_dir+'/registered_z.nii'
     subprocess.getoutput(cmd_line)     
     print(cmd_line)
     print("Preprocessing done!")
@@ -207,7 +186,7 @@ def main(img_path, age,output_path):
     print('\n','\n','\n','loaded:' ,model_weight_path_segmentation)
 
 
-    image_sitk = sitk.ReadImage(new_path_to+'/registered_z.nii')    
+    image_sitk = sitk.ReadImage(new_dir+'/registered_z.nii')    
     windowed_images  = sitk.GetArrayFromImage(image_sitk)
 
     ## predict slice
@@ -238,12 +217,21 @@ def main(img_path, age,output_path):
     print("Predicted slice:", slice_label)
 
     ## Inference and segmentation
-    img = nib.load(new_path_to+'/registered_z.nii')  
+    img = nib.load(new_dir+'/registered_z.nii')  
     image_array, affine = img.get_fdata(), img.affine
     infer_seg_array_3d_1,infer_seg_array_3d_2 = np.zeros(image_array.shape),np.zeros(image_array.shape)
     print(np.asarray(nib.aff2axcodes(affine)))
     image_array_2d = image_array[:, 15:-21, slice_label] 
     perimeter_opencv, perimeter_convex = get_contour(image_array_2d)
+    data = {
+    'patient_id': [patient_id],
+    'perimeter_convex': [perimeter_convex],
+    'perimeter_opencv': [perimeter_opencv]
+}
+
+    df_results = pd.DataFrame(data)
+    df_results.to_csv(new_dir+"/"+ 'perimeters.csv', index=False)
+
     return perimeter_opencv, perimeter_convex
 
 if __name__ == "__main__":
