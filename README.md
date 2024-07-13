@@ -16,7 +16,7 @@ docker run \
   -v /path/to/output/directory:/output \
   mri2circ \
   python3.9 /executables/process_image.py \
-  /input/input_file.nii.gz age /output
+  /input/input_file.nii.gz age --neonatal /output
 
 
 # References
