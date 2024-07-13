@@ -44,7 +44,9 @@ warnings.filterwarnings('ignore')
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 
 def select_template_based_on_age(age):
-    age_ranges = {"../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
+    age_ranges = {
+        "../shared_data/mni_templates/template_T1.nii.gz": {"min_age":0,"max_age":2},
+        "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
             "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
             "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
     for golden_file_path, age_values in age_ranges.items():
@@ -56,6 +58,7 @@ def select_template_based_on_age(age):
 def register_to_template(input_image_path, output_path, fixed_image_path,create_subfolder=True):
     fixed_image = itk.imread(fixed_image_path, itk.F)
     print(f"first Fixed image path {fixed_image_path}")
+    print(type(fixed_image))
     # Import Parameter Map
     parameter_object = itk.ParameterObject.New()
     print(f"parameter {fixed_image_path}")
@@ -64,14 +67,18 @@ def register_to_template(input_image_path, output_path, fixed_image_path,create_
     print(f"input image path {input_image_path}")
     if "nii" in input_image_path and "._" not in input_image_path:
         print(f"before try")
+        #print(f"registration object {fixed_image}")
 
         # Call registration function
-        try:        
+        try: 
+            print("got here1")       
             moving_image = itk.imread(input_image_path, itk.F)
+            print("got here2")
             result_image, result_transform_parameters = itk.elastix_registration_method(
                 fixed_image, moving_image,
                 parameter_object=parameter_object,
                 log_to_console=False)
+            print("got here 4")
             image_id = input_image_path.split("/")[-1]
             
             if create_subfolder:
