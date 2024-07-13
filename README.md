@@ -7,6 +7,7 @@ docker build -t mri2circ -f Dockerfile .
 # Inputs
 T1 image (nifti)
 Age in years (float): Template ranges 0-2,3-7,8-13,14-35
+--neonatal: optional, if present Age should be entered in weeks as an integer value ranging from 36-44
 
 # Run docker
 

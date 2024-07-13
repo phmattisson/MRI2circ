@@ -43,16 +43,36 @@ warnings.filterwarnings('ignore')
 
 physical_devices = tf.config.experimental.list_physical_devices('GPU')
 
-def select_template_based_on_age(age):
-    age_ranges = {
-        "../shared_data/mni_templates/template_T1.nii.gz": {"min_age":0,"max_age":2},
-        "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
-            "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
-            "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
-    for golden_file_path, age_values in age_ranges.items():
-        if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
-            print(golden_file_path)
-            return golden_file_path
+def select_template_based_on_age(age,neonatal):
+    if neonatal:
+        if age == 36:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_36/template_t1.nii.gz"
+        elif age == 37:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_37/template_t1.nii.gz"
+        elif age == 38:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_38/template_t1.nii.gz"
+        elif age == 39:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_39/template_t1.nii.gz"
+        elif age == 40:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_40/template_t1.nii.gz"
+        elif age == 41:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_41/template_t1.nii.gz"
+        elif age == 42:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_42/template_t1.nii.gz"
+        elif age == 43:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_43/template_t1.nii.gz"
+        elif age == 44:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_44/template_t1.nii.gz"
+        return golden_file_path
+    else:
+        age_ranges = {
+            "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
+                "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
+                "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
+        for golden_file_path, age_values in age_ranges.items():
+            if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
+                print(golden_file_path)
+                return golden_file_path
 
 
 def register_to_template(input_image_path, output_path, fixed_image_path,create_subfolder=True):
@@ -130,8 +150,8 @@ def get_contour(img_input):
     return round(perimeter, 2), round(p, 2)
 
 
-def main(img_path, age,output_path):
-    gender = "F" # gender
+def main(img_path, age,output_path,neonatal):
+    gender = "M" # gender
     model_weight_path_segmentation = '../model/unet_models/test/itmt1.hdf5'
     model_weight_path_selection = '../model/densenet_models/test/itmt1.hdf5'
     path_to = output_path # save to
@@ -153,7 +173,7 @@ def main(img_path, age,output_path):
     #new_path_to = "/Users/philipmattisson/Desktop/Centile/software/git/itmt/output/test_output"
     # register image to MNI template
     print(f"new path to {new_path_to}")
-    golden_file_path = select_template_based_on_age(age)
+    golden_file_path = select_template_based_on_age(age,neonatal)
     #golden_file_path = "/Users/philipmattisson/Desktop/Centile/software/git/itmt/shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii"
     print("Registering to template:", golden_file_path)
    
@@ -245,11 +265,14 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate brain perimeter from MRI image.")
     parser.add_argument("img_path", type=str, help="Path to the MRI image file")
     parser.add_argument("age", type=int, help="Age of the subject")
+    parser.add_argument("--neonatal", action="store_true", help="Flag to indicate if the subject is neonatal")
     parser.add_argument("output_path", type=str, help="Path to the output folder")
+    
+    
     
     args = parser.parse_args()
     
-    result = main(args.img_path, args.age, args.output_path)
+    result = main(args.img_path, args.age, args.output_path,args.neonatal)
     if result:
         perimeter_opencv, perimeter_convex = result
         print(f'perimeter_opencv {perimeter_opencv}, perimeter_convex {perimeter_convex}')
