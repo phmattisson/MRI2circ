@@ -37,4 +37,4 @@ COPY shared_data /shared_data
 COPY *.py /
 
 # Default command to run on container start
-CMD ["python3.9", "/executables/process_image.py"]
+CMD ["python3.9", "/executables/new_process_image_with_options.py"]

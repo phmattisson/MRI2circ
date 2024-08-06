@@ -11,12 +11,11 @@ Age in years (float): Template ranges 0-2,3-7,8-13,14-35
 
 # Run docker
 
-docker run \
-  -v /path/to/input/directory:/input \
-  -v /path/to/output/directory:/output \
-  mri2circ \
-  python3.9 /executables/process_image.py \
-  /input/input_file.nii.gz age --neonatal /output
+docker run -v /path/to/input/data:/input -v /path/to/output:/output mri2circ python3.9 /executables/run_process_image_with_options.py --img_path /input/your_image.nii --age 40 --output_path /output --threshold_filter Binary
+
+
+docker run -v /home/philip-mattisson/Desktop/data:/data mri2circ python3.9 /executables/run_process_image_with_options.py --img_path /data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz --age 35 --output_path /data/V2Out
+
 
 
 # References
