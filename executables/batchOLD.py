@@ -1,9 +1,9 @@
 import argparse
-import process_image
+import executables.process_imageOLD as process_imageOLD
 
 def main(img_path, age, output_path, neonatal):
     # Now passing the neonatal argument to process_image.main
-    results = process_image.main(img_path, age, output_path, neonatal)
+    results = process_imageOLD.main(img_path, age, output_path, neonatal)
     return results
 
 if __name__ == "__main__":

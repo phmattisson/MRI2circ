@@ -31,26 +31,32 @@ def register_images(fixed_image_path, moving_image_path):
 
 def select_template_based_on_age(age, neonatal):
     if neonatal:
-        age_templates = {
-            36: "../shared_data/mni_templates/mean/ga_36/template_t1.nii.gz",
-            37: "../shared_data/mni_templates/mean/ga_37/template_t1.nii.gz",
-            38: "../shared_data/mni_templates/mean/ga_38/template_t1.nii.gz",
-            39: "../shared_data/mni_templates/mean/ga_39/template_t1.nii.gz",
-            40: "../shared_data/mni_templates/mean/ga_40/template_t1.nii.gz",
-            41: "../shared_data/mni_templates/mean/ga_41/template_t1.nii.gz",
-            42: "../shared_data/mni_templates/mean/ga_42/template_t1.nii.gz",
-            43: "../shared_data/mni_templates/mean/ga_43/template_t1.nii.gz",
-            44: "../shared_data/mni_templates/mean/ga_44/template_t1.nii.gz"
-        }
-        return age_templates.get(age)
+        if age == 36:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_36/template_t1.nii.gz"
+        elif age == 37:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_37/template_t1.nii.gz"
+        elif age == 38:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_38/template_t1.nii.gz"
+        elif age == 39:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_39/template_t1.nii.gz"
+        elif age == 40:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_40/template_t1.nii.gz"
+        elif age == 41:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_41/template_t1.nii.gz"
+        elif age == 42:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_42/template_t1.nii.gz"
+        elif age == 43:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_43/template_t1.nii.gz"
+        elif age == 44:
+            golden_file_path = "../shared_data/mni_templates/mean/ga_44/template_t1.nii.gz"
+        return golden_file_path
     else:
         age_ranges = {
-            "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii": {"min_age": 3, "max_age": 7},
-            "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age": 8, "max_age": 13},
-            "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age": 14, "max_age": 35}
-        }
+            "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
+                "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
+                "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
         for golden_file_path, age_values in age_ranges.items():
-            if age_values['min_age'] <= int(age) <= age_values['max_age']:
+            if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
                 print(golden_file_path)
                 return golden_file_path
 
@@ -149,9 +155,20 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
 
     print(f"Circumference: {circumference:.2f} mm")
     return circumference
+'''
+if __name__ == "__main__":    
+    path = '/home/philip-mattisson/Desktop/data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz'
+    age = 35
+    output = '/home/philip-mattisson/Desktop/data/V2Out'
 
+    result = main(path, age, output,False)
+    if result:
+        print(f"Calculated Head Circumference: {result:.2f} mm")
+    else:
+        print("Failed to process image.")
+'''
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Calculate brain circumference from MRI image.")
+    parser = argparse.ArgumentParser(description="Calculate brain perimeter from MRI image.")
     parser.add_argument("img_path", type=str, help="Path to the MRI image file")
     parser.add_argument("age", type=int, help="Age of the subject")
     parser.add_argument("output_path", type=str, help="Path to the output folder")
@@ -167,19 +184,16 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    threshold_filter_map = {
-        "Otsu": ThresholdFilter.Otsu,
-        "Binary": ThresholdFilter.Binary,
-    }
-    
     result = main(args.img_path, args.age, args.output_path, args.neonatal,
                   theta_x=args.theta_x, theta_y=args.theta_y, theta_z=args.theta_z,
                   conductance_parameter=args.conductance_parameter,
                   smoothing_iterations=args.smoothing_iterations,
                   time_step=args.time_step,
-                  threshold_filter=threshold_filter_map[args.threshold_filter],
+                  threshold_filter=args.threshold_filter,
                   mip_slices=args.mip_slices)
+    
     if result:
-        print(f"Calculated Head Circumference: {result:.2f} mm")
+        print(f'circumference {result}')
     else:
         print("Failed to process image.")
+

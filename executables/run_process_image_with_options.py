@@ -42,7 +42,7 @@ if __name__ == "__main__":
     parser.add_argument("--img_path", type=str, default="/home/philip-mattisson/Desktop/data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz", help="Path to the MRI image file")
     parser.add_argument("--age", type=int, default=35, help="Age of the subject")
     parser.add_argument("--output_path", type=str, default="/home/philip-mattisson/Desktop/data/V2Out", help="Path to the output folder")
-    parser.add_argument("--neonatal", action="store_true", help="Flag to indicate if the subject is neonatal")
+    parser.add_argument("--neonatal", action="store_false", help="Flag to indicate if the subject is neonatal")
     parser.add_argument("--theta_x", type=float, default=0, help="Rotation angle around x-axis")
     parser.add_argument("--theta_y", type=float, default=0, help="Rotation angle around y-axis")
     parser.add_argument("--theta_z", type=float, default=0, help="Rotation angle around z-axis")
