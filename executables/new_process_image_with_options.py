@@ -60,6 +60,19 @@ def select_template_based_on_age(age, neonatal):
                 print(golden_file_path)
                 return golden_file_path
 
+
+def zscore_normalize(input_file, output_file):
+    img = nib.load(input_file)
+    data = img.get_fdata()
+
+    mean = np.mean(data)
+    std = np.std(data)
+    z_scored = (data - mean) / std
+
+    new_img = nib.Nifti1Image(z_scored, img.affine, img.header)
+
+    nib.save(new_img, output_file)
+
 def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0, 
          conductance_parameter=3.0, smoothing_iterations=5, time_step=0.0625, 
          threshold_filter=ThresholdFilter.Otsu, mip_slices=5):
@@ -84,11 +97,16 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
     image_array = sitk.GetArrayFromImage(image_sitk)
     enhanced_image_array = enhance_noN4(image_array)
     image3 = sitk.GetImageFromArray(enhanced_image_array)
-
+    
     sitk.WriteImage(image3, output_dir + "/no_z/registered_no_z.nii")
+    """
     cmd_line = f"zscore-normalize {output_dir}/no_z/registered_no_z.nii -o {output_dir}/registered_z.nii"
     subprocess.getoutput(cmd_line)     
     print(cmd_line)
+    """
+    input_file = f"{output_dir}/no_z/registered_no_z.nii"
+    output_file = f"{output_dir}/registered_z.nii"
+    zscore_normalize(input_file, output_file)
     print("Preprocessing done!")
     image_sitk = sitk.ReadImage(output_dir + '/registered_z.nii')    
     enhanced_image_array = sitk.GetArrayFromImage(image_sitk)  
