@@ -19,9 +19,15 @@ from intensity_normalization.normalize.zscore import ZScoreNormalize
 import subprocess
 import matplotlib
 matplotlib.use('Agg')
+import argparse
+import SimpleITK as sitk
+import cv2
+import numpy as np
+import matplotlib.pyplot as plt
+from enum import Enum
 
 # Import necessary functions from mips.py
-from mips import process_and_visualize, ThresholdFilter
+from mips import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
 
 def register_images(fixed_image_path, moving_image_path):
     fixed_image = ants.image_read(fixed_image_path)
@@ -99,11 +105,12 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
     image3 = sitk.GetImageFromArray(enhanced_image_array)
     
     sitk.WriteImage(image3, output_dir + "/no_z/registered_no_z.nii")
-    """
+    ''' 
     cmd_line = f"zscore-normalize {output_dir}/no_z/registered_no_z.nii -o {output_dir}/registered_z.nii"
     subprocess.getoutput(cmd_line)     
     print(cmd_line)
-    """
+    '''
+    
     input_file = f"{output_dir}/no_z/registered_no_z.nii"
     output_file = f"{output_dir}/registered_z.nii"
     zscore_normalize(input_file, output_file)
@@ -139,8 +146,17 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
     predictions = model_selection.predict(series_w)
     slice_label = get_slice_number_from_prediction(predictions)
     print("Predicted slice:", slice_label)
-
+    print(f'registered path: {registered_path}')
     # Calculate circumference using mips.py function (on non-enhanced registered image)
+    # After parsing arguments
+    if args.threshold_filter == "Otsu":
+        threshold_filter_enum = ThresholdFilter.Otsu
+    elif args.threshold_filter == "Binary":
+        threshold_filter_enum = ThresholdFilter.Binary
+    else:
+        raise ValueError(f"Invalid threshold filter: {args.threshold_filter}")
+
+    
     circumference, contour_array, mip_array = process_and_visualize(
         registered_path,
         slice_num=slice_label,
@@ -150,7 +166,7 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
         conductance_parameter=conductance_parameter,
         smoothing_iterations=smoothing_iterations,
         time_step=time_step,
-        threshold_filter=threshold_filter,
+        threshold_filter=threshold_filter_enum,
         mip_slices=mip_slices
     )
 

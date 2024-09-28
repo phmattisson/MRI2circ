@@ -13,8 +13,11 @@ def process_and_visualize(image_path, slice_num, theta_x=0, theta_y=0, theta_z=0
                           conductance_parameter=3.0, smoothing_iterations=5, time_step=0.0625,
                           threshold_filter=ThresholdFilter.Otsu, mip_slices=5):
     # Load the image
+    #print(f"Image path {image_path}")
+    #print(f'conductance parameter {conductance_parameter}')
     image = sitk.ReadImage(image_path)
     image_array = sitk.GetArrayFromImage(image)
+    #print(image)
 
     # Apply rotation
     euler_transform = sitk.Euler3DTransform()
@@ -110,8 +113,8 @@ def distance_2d_with_spacing(p1, p2, x_spacing, y_spacing):
 if __name__ == "__main__":
     # Example usage
     circumference, contour, mip = process_and_visualize(
-        '/home/philip-mattisson/Desktop/data/V2Out/sub-pixar066_anat_sub-pixar066_T1w.nii/registered.nii.gz',
-        slice_num=52,
+        '/Users/philipmattisson/offline/OfflineCentile/mri2circV2/test_data/testoutput/sub-CC00143BN12_ses-47600_T1w.nii/registered.nii.gz',
+        slice_num=149,
         theta_x=0,
         theta_y=0,
         theta_z=0,
