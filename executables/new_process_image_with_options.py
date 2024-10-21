@@ -35,7 +35,7 @@ def register_images(fixed_image_path, moving_image_path):
     registration = ants.registration(fixed=fixed_image, moving=moving_image, type_of_transform='Rigid')
     return registration['warpedmovout']
 
-def select_template_based_on_age(age, neonatal):
+def select_template_based_on_age(age, neonatal,months):
     if neonatal:
         if age == 36:
             golden_file_path = "../shared_data/mni_templates/mean/ga_36/template_t1.nii.gz"
@@ -55,6 +55,58 @@ def select_template_based_on_age(age, neonatal):
             golden_file_path = "../shared_data/mni_templates/mean/ga_43/template_t1.nii.gz"
         elif age == 44:
             golden_file_path = "../shared_data/mni_templates/mean/ga_44/template_t1.nii.gz"
+        return golden_file_path
+    elif months:
+        if age == 0:
+            golden_file_path = "../shared_data/mni_templates/months/0Month/BCP-00M-T1.nii.gz"
+        elif age == 1:
+            golden_file_path = "../shared_data/mni_templates/months/1Month/BCP-01M-T1.nii.gz"
+        elif age == 2:
+            golden_file_path = "../shared_data/mni_templates/months/2Month/BCP-02M-T1.nii.gz"
+        elif age == 3:
+            golden_file_path = "../shared_data/mni_templates/months/3Month/BCP-03M-T1.nii.gz"
+        elif age == 4:
+            golden_file_path = "../shared_data/mni_templates/months/4Month/BCP-04M-T1.nii.gz"
+        elif age == 5:
+            golden_file_path = "../shared_data/mni_templates/months/5Month/BCP-05M-T1.nii.gz"
+        elif age == 6:
+            golden_file_path = "../shared_data/mni_templates/months/6Month/BCP-06M-T1.nii.gz"
+        elif age == 7:
+            golden_file_path = "../shared_data/mni_templates/months/7Month/BCP-07M-T1.nii.gz"
+        elif age == 8:
+            golden_file_path = "../shared_data/mni_templates/months/8Month/BCP-08M-T1.nii.gz"
+        elif age == 9:
+            golden_file_path = "../shared_data/mni_templates/months/9Month/BCP-09M-T1.nii.gz"
+        elif age == 10:
+            golden_file_path = "../shared_data/mni_templates/months/10Month/BCP-10M-T1.nii.gz"
+        elif age == 11:
+            golden_file_path = "../shared_data/mni_templates/months/11Month/BCP-11M-T1.nii.gz"
+        elif age == 12:
+            golden_file_path = "../shared_data/mni_templates/months/12Month/BCP-12M-T1.nii.gz"
+        elif age == 13:
+            golden_file_path = "../shared_data/mni_templates/months/13Month/BCP-13M-T1.nii.gz"
+        elif age == 14:
+            golden_file_path = "../shared_data/mni_templates/months/14Month/BCP-14M-T1.nii.gz"
+        elif age == 15:
+            golden_file_path = "../shared_data/mni_templates/months/15Month/BCP-15M-T1.nii.gz"
+        elif age == 16:
+            golden_file_path = "../shared_data/mni_templates/months/16Month/BCP-16M-T1.nii.gz"
+        elif age == 17:
+            golden_file_path = "../shared_data/mni_templates/months/17Month/BCP-17M-T1.nii.gz"
+        elif age == 18:
+            golden_file_path = "../shared_data/mni_templates/months/18Month/BCP-18M-T1.nii.gz"
+        elif age == 19:
+            golden_file_path = "../shared_data/mni_templates/months/19Month/BCP-19M-T1.nii.gz"
+        elif age == 20:
+            golden_file_path = "../shared_data/mni_templates/months/20Month/BCP-20M-T1.nii.gz"
+        elif age == 21:
+            golden_file_path = "../shared_data/mni_templates/months/21Month/BCP-21M-T1.nii.gz"
+        elif age == 22:
+            golden_file_path = "../shared_data/mni_templates/months/22Month/BCP-22M-T1.nii.gz"
+        elif age == 23:
+            golden_file_path = "../shared_data/mni_templates/months/23Month/BCP-23M-T1.nii.gz"
+        elif age == 24:
+            golden_file_path = "../shared_data/mni_templates/months/24Month/BCP-24M-T1.nii.gz"
         return golden_file_path
     else:
         age_ranges = {
@@ -79,11 +131,11 @@ def zscore_normalize(input_file, output_file):
 
     nib.save(new_img, output_file)
 
-def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0, 
+def main(img_path, age, output_path, neonatal,months, theta_x=0, theta_y=0, theta_z=0, 
          conductance_parameter=3.0, smoothing_iterations=5, time_step=0.0625, 
          threshold_filter=ThresholdFilter.Otsu, mip_slices=5):
     # Select template
-    template_path = select_template_based_on_age(age, neonatal)
+    template_path = select_template_based_on_age(age, neonatal,months)
 
     # Register image to template
     registered_image = register_images(template_path, img_path)
@@ -207,6 +259,7 @@ if __name__ == "__main__":
     parser.add_argument("age", type=int, help="Age of the subject")
     parser.add_argument("output_path", type=str, help="Path to the output folder")
     parser.add_argument("--neonatal", action="store_true", help="Flag to indicate if the subject is neonatal")
+    parser.add_argument("--months", action="store_true", help="Flag to indicate if age is specified in months")
     parser.add_argument("--theta_x", type=float, default=0, help="Rotation angle around x-axis")
     parser.add_argument("--theta_y", type=float, default=0, help="Rotation angle around y-axis")
     parser.add_argument("--theta_z", type=float, default=0, help="Rotation angle around z-axis")
@@ -218,7 +271,7 @@ if __name__ == "__main__":
     
     args = parser.parse_args()
     
-    result = main(args.img_path, args.age, args.output_path, args.neonatal,
+    result = main(args.img_path, args.age, args.output_path, args.neonatal,args.months,
                   theta_x=args.theta_x, theta_y=args.theta_y, theta_z=args.theta_z,
                   conductance_parameter=args.conductance_parameter,
                   smoothing_iterations=args.smoothing_iterations,
