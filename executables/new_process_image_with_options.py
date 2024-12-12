@@ -25,9 +25,14 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
+from shapely.geometry import Polygon,LineString,MultiPolygon,GeometryCollection
+from shapely.ops import split
+from shapely.affinity import scale
+from matplotlib.colors import ListedColormap
+import matplotlib.patches as mpatches
 
 # Import necessary functions from mips.py
-from mips import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
+from mips import process_circumference, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
 
 def register_images(fixed_image_path, moving_image_path):
     fixed_image = ants.image_read(fixed_image_path)
@@ -157,7 +162,260 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
         raise ValueError(f"Invalid threshold filter: {args.threshold_filter}")
 
     
-    circumference, contour_array, mip_array = process_and_visualize(
+    circumference,contour_array, mip_array,spacing,largest_component_array = process_circumference(
+        registered_path,
+        slice_num=slice_label,
+        theta_x=theta_x,
+        theta_y=theta_y,
+        theta_z=theta_z,
+        conductance_parameter=conductance_parameter,
+        smoothing_iterations=smoothing_iterations,
+        time_step=time_step,
+        threshold_filter=threshold_filter_enum,
+        mip_slices=mip_slices
+    )
+    """
+    y_indices, x_indices = np.where(contour_array > 0)
+
+    # Get the spacing from the original image
+    spacing_x = spacing[0]  # Spacing along the x-axis (width)
+    spacing_y = spacing[1]  # Spacing along the y-axis (height)
+
+    # Convert pixel indices to physical coordinates using spacing
+    coordinates = [(x * spacing_x, y * spacing_y) for x, y in zip(x_indices, y_indices)]
+
+    # Create a polygon from the coordinates
+    polygon = Polygon(coordinates)
+
+    minx, miny, maxx, maxy = polygon.bounds
+
+    # Calculate width and length of the bounding box in millimeters
+    width_mm = maxx - minx
+    length_mm = maxy - miny
+    center_x = (minx + maxx) / 2
+    center_y = (miny + maxy) / 2
+    vertical_line = LineString([(center_x, miny), (center_x, maxy)])
+    horizontal_line = LineString([(minx, center_y), (maxx, center_y)])
+
+    # Split the polygon with the vertical line
+    split_polygons = split(polygon, vertical_line)
+
+
+    # Optionally, calculate the perimeter (circumference) using Shapely
+    area_pixels = np.sum(largest_component_array)
+    # Convert area to square millimeters
+    area_mm2 = (area_pixels * spacing_x * spacing_y)/100
+    cephalic_index = (width_mm/length_mm)*100
+
+    # Save results including width and length
+    df_results = pd.DataFrame({
+        'patient_id': [patient_id],
+        'circumference (mm)': [circumference],  # You can replace this with 'perimeter_mm' if you prefer Shapely's calculation
+        'width (mm)': [width_mm],
+        'length (mm)': [length_mm],
+        'area (cm^2)': [area_mm2],
+        'cephalic_index': [cephalic_index]
+    })
+    df_results.to_csv(os.path.join(output_dir, 'circumference.csv'), index=False)
+
+    # Plot the visualization with width and length measurements
+    plt.ioff()
+    plt.figure(figsize=(10, 10))
+    plt.imshow(mip_array, cmap='gray')
+    plt.contour(contour_array, colors='r')
+
+    # Convert physical coordinates back to pixel indices for plotting
+    minx_idx = minx / spacing_x
+    maxx_idx = maxx / spacing_x
+    miny_idx = miny / spacing_y
+    maxy_idx = maxy / spacing_y
+
+    # Plot width line (horizontal line at the middle y-coordinate)
+    mid_y_idx = (miny_idx + maxy_idx) / 2
+    plt.plot([minx_idx, maxx_idx], [mid_y_idx, mid_y_idx], 'b-', linewidth=2)
+
+    # Plot length line (vertical line at the middle x-coordinate)
+    mid_x_idx = (minx_idx + maxx_idx) / 2
+    plt.plot([mid_x_idx, mid_x_idx], [miny_idx, maxy_idx], 'g-', linewidth=2)
+
+    # Add title with measurements
+    plt.title(f"Head Circumference: {circumference:.2f} mm\nWidth: {width_mm:.2f} mm, Length: {length_mm:.2f} mm")
+    plt.axis('off')
+    plt.savefig(os.path.join(output_dir, 'contour_visualization.png'))
+    plt.close()
+
+    print(f"Circumference: {circumference:.2f} mm")
+    print(f"Width: {width_mm:.2f} mm")
+    print(f"Length: {length_mm:.2f} mm")
+    print(f'Area cm^2: {area_mm2}')
+    
+    """
+   # Get the spacing from the original image
+    spacing_x = spacing[0]  # Spacing along the x-axis (width)
+    spacing_y = spacing[1]  # Spacing along the y-axis (height)
+
+    # Calculate the indices corresponding to the head contour
+    y_indices, x_indices = np.where(contour_array > 0)
+
+    # Calculate the bounding box of the head contour
+    minx_idx = np.min(x_indices)
+    maxx_idx = np.max(x_indices)
+    miny_idx = np.min(y_indices)
+    maxy_idx = np.max(y_indices)
+
+    # Calculate width and length in millimeters
+    width_mm = (maxx_idx - minx_idx) * spacing_x
+    length_mm = (maxy_idx - miny_idx) * spacing_y
+    center_x_idx = (minx_idx + maxx_idx) // 2
+    center_y_idx = (miny_idx + maxy_idx) // 2
+
+    # Calculate total area in pixels
+    area_pixels = np.sum(largest_component_array)
+    # Convert area to square millimeters
+    area_mm2 = area_pixels * spacing_x * spacing_y
+    area_cm2 = area_mm2 / 100
+
+    # Create masks for each quadrant
+    print(type(largest_component_array))
+    height, width = largest_component_array.shape
+    Y, X = np.ogrid[:height, :width]
+
+    upper_mask = Y < center_y_idx
+    lower_mask = Y >= center_y_idx
+    left_mask = X < center_x_idx
+    right_mask = X >= center_x_idx
+
+    upper_left_mask = upper_mask & left_mask
+    upper_right_mask = upper_mask & right_mask
+    lower_left_mask = lower_mask & left_mask
+    lower_right_mask = lower_mask & right_mask
+
+    # Calculate area in pixels for each quadrant
+    area_upper_left_pixels = np.sum(largest_component_array & upper_left_mask)
+    area_upper_right_pixels = np.sum(largest_component_array & upper_right_mask)
+    area_lower_left_pixels = np.sum(largest_component_array & lower_left_mask)
+    area_lower_right_pixels = np.sum(largest_component_array & lower_right_mask)
+
+    # Convert area to cm^2
+    area_upper_left_cm2 = area_upper_left_pixels * spacing_x * spacing_y / 100
+    area_upper_right_cm2 = area_upper_right_pixels * spacing_x * spacing_y / 100
+    area_lower_left_cm2 = area_lower_left_pixels * spacing_x * spacing_y / 100
+    area_lower_right_cm2 = area_lower_right_pixels * spacing_x * spacing_y / 100
+
+    # Store the areas in a dictionary
+    quadrant_areas = {
+        'upper_left': area_upper_left_cm2,
+        'upper_right': area_upper_right_cm2,
+        'lower_left': area_lower_left_cm2,
+        'lower_right': area_lower_right_cm2
+    }
+
+    # Save results including width, length, and quadrant areas
+    df_results = pd.DataFrame({
+        'patient_id': [patient_id],
+        'circumference (mm)': [circumference],
+        'width (mm)': [width_mm],
+        'length (mm)': [length_mm],
+        'area (cm^2)': [area_cm2],
+        'cephalic_index': [(width_mm / length_mm) * 100],
+        'upper_left_area (cm^2)': [quadrant_areas.get('upper_left', 0)],
+        'upper_right_area (cm^2)': [quadrant_areas.get('upper_right', 0)],
+        'lower_left_area (cm^2)': [quadrant_areas.get('lower_left', 0)],
+        'lower_right_area (cm^2)': [quadrant_areas.get('lower_right', 0)]
+    })
+    df_results.to_csv(os.path.join(output_dir, 'circumference_and_quadrant_areas.csv'), index=False)
+
+    # Plot the visualization with width and length measurements
+    plt.ioff()
+    plt.figure(figsize=(10, 10))
+    plt.imshow(mip_array, cmap='gray')
+    plt.contour(contour_array, colors='r')
+
+    # Plot width line (horizontal line at the middle y-coordinate)
+    plt.plot([minx_idx, maxx_idx], [center_y_idx, center_y_idx], 'b-', linewidth=2)
+
+    # Plot length line (vertical line at the middle x-coordinate)
+    plt.plot([center_x_idx, center_x_idx], [miny_idx, maxy_idx], 'g-', linewidth=2)
+
+    # Plot the vertical and horizontal lines for quadrants
+    plt.plot([center_x_idx, center_x_idx], [0, mip_array.shape[0]], 'y--', linewidth=1)  # Vertical line
+    plt.plot([0, mip_array.shape[1]], [center_y_idx, center_y_idx], 'y--', linewidth=1)  # Horizontal line
+
+    # Annotate quadrants
+    quadrant_positions = {
+        'upper_left': (minx_idx + (center_x_idx - minx_idx) / 2, miny_idx + (center_y_idx - miny_idx) / 2),
+        'upper_right': (center_x_idx + (maxx_idx - center_x_idx) / 2, miny_idx + (center_y_idx - miny_idx) / 2),
+        'lower_left': (minx_idx + (center_x_idx - minx_idx) / 2, center_y_idx + (maxy_idx - center_y_idx) / 2),
+        'lower_right': (center_x_idx + (maxx_idx - center_x_idx) / 2, center_y_idx + (maxy_idx - center_y_idx) / 2),
+    }
+
+    for label, (x_pos, y_pos) in quadrant_positions.items():
+        area = quadrant_areas.get(label, 0)
+        plt.text(x_pos, y_pos, f'{label.replace("_", " ")}\n{area:.2f} cm²', color='white', fontsize=8, ha='center', va='center')
+
+    # Add title with measurements
+    plt.title(f"Head Circumference: {circumference:.2f} mm\nWidth: {width_mm:.2f} mm, Length: {length_mm:.2f} mm")
+    plt.axis('off')
+    plt.savefig(os.path.join(output_dir, 'contour_and_quadrants_visualization.png'))
+    plt.close()
+
+    # Plot the quadrants with different colors
+    plt.figure(figsize=(10, 10))
+    plt.imshow(mip_array, cmap='gray')
+    plt.contour(contour_array, colors='r')
+
+    # Create an RGB image to overlay quadrants
+ 
+
+    # Create a colored mask for visualization
+    colored_mask = np.zeros((largest_component_array.shape[0], largest_component_array.shape[1], 3), dtype=np.uint8)
+
+    colors = {
+        'upper_left': [255, 0, 0],    # Red
+        'upper_right': [0, 255, 0],   # Green
+        'lower_left': [0, 0, 255],    # Blue
+        'lower_right': [255, 255, 0]  # Yellow
+    }
+
+    # Apply colors to the quadrants
+    for label, color in colors.items():
+        if label == 'upper_left':
+            mask = largest_component_array & upper_left_mask
+        elif label == 'upper_right':
+            mask = largest_component_array & upper_right_mask
+        elif label == 'lower_left':
+            mask = largest_component_array & lower_left_mask
+        elif label == 'lower_right':
+            mask = largest_component_array & lower_right_mask
+
+        colored_mask[mask > 0] = color
+
+    # Overlay the colored mask onto the image
+    plt.imshow(colored_mask, alpha=0.5)
+
+    # Annotate quadrants with areas
+    for label, (x_pos, y_pos) in quadrant_positions.items():
+        area = quadrant_areas.get(label, 0)
+        plt.text(x_pos, y_pos, f'{label.replace("_", " ")}\n{area:.2f} cm²', color='white', fontsize=8, ha='center', va='center')
+
+    plt.title("Head Contour Split into Quadrants")
+    plt.axis('off')
+    plt.savefig(os.path.join(output_dir, 'quadrant_visualization.png'))
+    plt.close()
+
+    # Print out the measurements
+    print(f"Circumference: {circumference:.2f} mm")
+    print(f"Width: {width_mm:.2f} mm")
+    print(f"Length: {length_mm:.2f} mm")
+    print(f"Area (cm^2): {area_cm2:.2f}")
+    print(f"Cephalic Index: {(width_mm / length_mm) * 100:.2f}")
+    for label, area in quadrant_areas.items():
+        print(f"Area of {label.replace('_', ' ')}: {area:.2f} cm^2")
+
+    return circumference
+
+# Get the results dictionary from process_and_visualize
+"""     results = process_and_visualize(
         registered_path,
         slice_num=slice_label,
         theta_x=theta_x,
@@ -170,25 +428,40 @@ def main(img_path, age, output_path, neonatal, theta_x=0, theta_y=0, theta_z=0,
         mip_slices=mip_slices
     )
 
+    # Extract values from the dictionary
+    circumference = results['circumference']
+    width = results['width']
+    length = results['length']
+    area = results['area']
+    contour_array = results['contour_array']
+    mip_array = results['mip_array']
+    polygon = results['polygon']
+    bounds = results['bounds']
+
+    print(f"width: {width}")
+    print(f"length: {length}")
+    print(f"area: {area}")
+
     # Save results
     df_results = pd.DataFrame({
         'patient_id': [patient_id],
-        'circumference': [circumference]
+        'circumference': [circumference],
+        'width': [width],
+        'length': [length],
+        'area': [area]
     })
-    df_results.to_csv(os.path.join(output_dir, 'circumference.csv'), index=False)
+    df_results.to_csv(os.path.join(output_dir, 'measurements.csv'), index=False)
 
     # Save the visualization
     plt.ioff()
     plt.figure(figsize=(10, 10))
     plt.imshow(mip_array, cmap='gray')
     plt.contour(contour_array, colors='r')
-    plt.title(f"Head Circumference: {circumference:.2f} mm")
+    plt.title(f"Head Measurements:\nCircumference: {circumference:.2f} mm\n"
+            f"Width: {width:.2f} mm\nLength: {length:.2f} mm\n"
+            f"Area: {area:.2f} mm²")
     plt.axis('off')
-    plt.savefig(os.path.join(output_dir, 'contour_visualization.png'))
-    plt.close()
-
-    print(f"Circumference: {circumference:.2f} mm")
-    return circumference
+    plt.savefig   """  
 '''
 if __name__ == "__main__":    
     path = '/home/philip-mattisson/Desktop/data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz'

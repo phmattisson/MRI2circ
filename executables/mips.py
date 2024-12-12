@@ -4,6 +4,8 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from enum import Enum
+from shapely.geometry import Polygon,MultiPolygon
+from shapely.ops import unary_union
 
 class ThresholdFilter(Enum):
     Otsu = 1
@@ -65,6 +67,7 @@ def process_and_visualize(image_path, slice_num, theta_x=0, theta_y=0, theta_z=0
     component_image = sitk.ConnectedComponent(hole_filling)
     sorted_component_image = sitk.RelabelComponent(component_image, sortByObjectSize=True)
     largest_component = sorted_component_image == 1
+    largest_component_array = sitk.GetArrayFromImage(largest_component)
 
     # Get contour
     contour_image = sitk.BinaryContour(largest_component)
@@ -76,15 +79,8 @@ def process_and_visualize(image_path, slice_num, theta_x=0, theta_y=0, theta_z=0
     spacing = image.GetSpacing()
     circumference = length_of_contour_with_spacing(contour_array, spacing[0], spacing[1])
 
-    # Visualize
-    plt.figure(figsize=(10, 10))
-    plt.imshow(mip_array, cmap='gray')
-    plt.contour(contour_array, colors='r')
-    plt.title(f"Head Circumference: {circumference:.2f} mm")
-    plt.axis('off')
-    plt.show()
+    return circumference, contour_array, mip_array,spacing,largest_component_array
 
-    return circumference, contour_array, mip_array
 
 def length_of_contour_with_spacing(binary_contour_slice, x_spacing, y_spacing):
     contours, _ = cv2.findContours(binary_contour_slice.astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_TC89_L1)

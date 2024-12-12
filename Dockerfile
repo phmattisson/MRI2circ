@@ -1,14 +1,11 @@
-#############################################
-# Select the OS
-FROM nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu20.04
+# Select the OS - use amd64 platform
+FROM --platform=linux/amd64 nvidia/cuda:11.7.1-cudnn8-runtime-ubuntu20.04
 
 USER root
-
 ENV TZ=US/Eastern
 RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 RUN apt update && apt install -y tzdata
 
-#############################################
 # Install dependencies
 RUN apt update && \
     apt install --no-install-recommends -y build-essential software-properties-common && \
@@ -17,7 +14,6 @@ RUN apt update && \
     apt clean && rm -rf /var/lib/apt/lists/*
 
 RUN python3.9 -m pip install --upgrade pip 
-
 RUN apt-get update && apt-get install ffmpeg libsm6 libxext6  -y
 
 RUN pip3 install --no-cache-dir --upgrade pip && \
@@ -28,7 +24,6 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
     wandb jupyter opencv-python  
 
 RUN python3.9 -c "import tensorflow"
-
 
 COPY scripts /scripts
 COPY executables /executables

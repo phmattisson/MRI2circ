@@ -1,0 +1,5 @@
+output/
+*.nii.gz
+*.nii
+*.png
+*.csv
