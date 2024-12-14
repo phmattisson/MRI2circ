@@ -30,7 +30,6 @@ from shapely.ops import split
 from shapely.affinity import scale
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
-# Import necessary functions from mips.py
 from mips import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
 
 def register_images(fixed_image_path, moving_image_path):
@@ -138,13 +137,10 @@ def zscore_normalize(input_file, output_file):
 def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0, theta_z=0, 
          conductance_parameter=3.0, smoothing_iterations=5, time_step=0.0625, 
          threshold_filter=ThresholdFilter.Binary, mip_slices=5):
-    # Select template
+    
     template_path = select_template_based_on_age(age, neonatal,months)
-
-    # Register image to template
     registered_image = register_images(template_path, img_path)
 
-    # Save the registered image (without enhancement)
     patient_id = os.path.splitext(os.path.basename(img_path))[0]
     output_dir = os.path.join(output_path, patient_id)
     os.makedirs(output_dir, exist_ok=True)
@@ -154,18 +150,12 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
     if not os.path.exists(output_dir + "/no_z"):
         os.mkdir(output_dir + "/no_z")
 
-    # Convert to numpy array and enhance for slice selection
     image_sitk = sitk.ReadImage(registered_path)
     image_array = sitk.GetArrayFromImage(image_sitk)
     enhanced_image_array = enhance_noN4(image_array)
     image3 = sitk.GetImageFromArray(enhanced_image_array)
 
     sitk.WriteImage(image3, output_dir + "/no_z/registered_no_z.nii")
-    ''' 
-    cmd_line = f"zscore-normalize {output_dir}/no_z/registered_no_z.nii -o {output_dir}/registered_z.nii"
-    subprocess.getoutput(cmd_line)     
-    print(cmd_line)
-    '''
 
     input_file = f"{output_dir}/no_z/registered_no_z.nii"
     output_file = f"{output_dir}/registered_z.nii"
@@ -204,7 +194,7 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
     slice_label = get_slice_number_from_prediction(predictions)
     print(slice_label)
       
-        # Calculate circumference using mips.py function (on non-enhanced registered image)
+    # Calculate circumference using mips.py function (on non-enhanced registered image)
     if threshold_filter == "Otsu":
         threshold_filter_enum = ThresholdFilter.Otsu
     elif threshold_filter == "Binary":
@@ -212,8 +202,7 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
     else:
         raise ValueError(f"Invalid threshold filter: {args.threshold_filter}")
 
-    print(threshold_filter)
-    print(threshold_filter_enum)
+    print(f'Threshold filter: {threshold_filter_enum}')
 
     if ranges:
         slice_interval = list(range(88,108))
@@ -342,7 +331,6 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
         for key in volumes:
             volumes[key] += slice_contribution.get(key, 0)
 
-        # Function to compute intersection points for a given angle
         def find_contour_line_intersections(cx, cy, angle_degs, contour_array, spacing):
             """
             Find intersection points between a line and the brain contour with symmetric angle handling.
@@ -398,11 +386,9 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
             
             return (x1, y1, x2, y2, length_mm)
         
-        # Usage in the main code:
         result_60 = find_contour_line_intersections(center_x_idx, center_y_idx, 60, contour_array, spacing)
         result_120 = find_contour_line_intersections(center_x_idx, center_y_idx, 120, contour_array, spacing)
 
-        # Plotting code:
         plt.ioff()
         fig = plt.figure(figsize=(20, 10))
         ax1 = plt.subplot(1, 2, 1)
@@ -411,7 +397,6 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
         ax1.imshow(mip_array, cmap='gray')
         ax1.contour(contour_array, colors='r')
 
-        # Plot width and length lines as before
         ax1.plot([minx_idx, maxx_idx], [center_y_idx, center_y_idx], 'b-', linewidth=2, label=f'Width {width_mm} mm')
         ax1.plot([center_x_idx, center_x_idx], [miny_idx, maxy_idx], 'g-', linewidth=2, label=f'Length {length_mm:} mm')
 
@@ -485,8 +470,9 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
             'lower_right_area_cm2': area_lower_right,
         }
         all_measurements.append(measurements)
+        print(slice_label+k)
+        print(image_array.shape[2])
 
-    # Once done with the loop, save final results
     if len(all_measurements) > 0:
         df_results = pd.DataFrame(all_measurements)
         summary_stats = {
@@ -504,18 +490,7 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
         # Save summary statistics
         pd.DataFrame([summary_stats]).to_csv(os.path.join(output_dir, 'summary_statistics.csv'), index=False)
     return circumference
-'''
-if __name__ == "__main__":    
-    path = '/home/philip-mattisson/Desktop/data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz'
-    age = 35
-    output = '/home/philip-mattisson/Desktop/data/V2Out'
 
-    result = main(path, age, output,False)
-    if result:
-        print(f"Calculated Head Circumference: {result:.2f} mm")
-    else:
-        print("Failed to process image.")
-'''
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate brain perimeter from MRI image.")
     parser.add_argument("img_path", type=str, help="Path to the MRI image file")
