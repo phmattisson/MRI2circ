@@ -1,6 +1,5 @@
 import os
 import argparse
-from re import I
 import numpy as np
 import sys
 sys.path.append('../')
@@ -15,12 +14,9 @@ from skimage.transform import resize
 import functools
 import ants
 import matplotlib.pyplot as plt
-from intensity_normalization.typing import Modality, TissueType
-from intensity_normalization.normalize.zscore import ZScoreNormalize
 import subprocess
 import matplotlib
 matplotlib.use('Agg')
-import argparse
 import SimpleITK as sitk
 import cv2
 import numpy as np
@@ -31,9 +27,7 @@ from shapely.ops import split
 from shapely.affinity import scale
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
-# Import necessary functions from mips.py
-from mipsTes import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
-import plotly.graph_objects as go
+from mips import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
 
 def register_images(fixed_image_path, moving_image_path):
     fixed_image = ants.image_read(fixed_image_path)
@@ -41,7 +35,7 @@ def register_images(fixed_image_path, moving_image_path):
     registration = ants.registration(fixed=fixed_image, moving=moving_image, type_of_transform='Rigid')
     return registration['warpedmovout']
 
-def select_template_based_on_age(age, neonatal,months):
+def select_template_based_on_age(age, neonatal, months):
     if neonatal:
         if age == 36:
             golden_file_path = "../shared_data/mni_templates/mean/ga_36/template_t1.nii.gz"
@@ -117,13 +111,13 @@ def select_template_based_on_age(age, neonatal,months):
     else:
         age_ranges = {
             "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
-                "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
-                "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
+            "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
+            "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}
+        }
         for golden_file_path, age_values in age_ranges.items():
             if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
                 print(golden_file_path)
                 return golden_file_path
-
 
 def zscore_normalize(input_file, output_file):
     img = nib.load(input_file)
@@ -134,19 +128,15 @@ def zscore_normalize(input_file, output_file):
     z_scored = (data - mean) / std
 
     new_img = nib.Nifti1Image(z_scored, img.affine, img.header)
-
     nib.save(new_img, output_file)
 
 def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_y=0, theta_z=0, 
          conductance_parameter=3.0, smoothing_iterations=5, time_step=0.0625, 
-         threshold_filter=ThresholdFilter.Otsu, mip_slices=5):
-    # Select template
+         threshold_filter=ThresholdFilter.Binary, mip_slices=5):
+    
     template_path = select_template_based_on_age(age, neonatal, months)
-
-    # Register image to template
     registered_image = register_images(template_path, img_path)
 
-    # Save the registered image (without enhancement)
     patient_id = os.path.splitext(os.path.basename(img_path))[0]
     output_dir = os.path.join(output_path, patient_id)
     os.makedirs(output_dir, exist_ok=True)
@@ -156,12 +146,10 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
     if not os.path.exists(output_dir + "/no_z"):
         os.mkdir(output_dir + "/no_z")
 
-    # Convert to numpy array and enhance for slice selection
     image_sitk = sitk.ReadImage(registered_path)
     image_array = sitk.GetArrayFromImage(image_sitk)
     enhanced_image_array = enhance_noN4(image_array)
     image3 = sitk.GetImageFromArray(enhanced_image_array)
-
     sitk.WriteImage(image3, output_dir + "/no_z/registered_no_z.nii")
 
     input_file = f"{output_dir}/no_z/registered_no_z.nii"
@@ -194,15 +182,13 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
         im_array = np.max(im_array, axis=3)
         series_n.append(im_array)
 
-    # Ensure 'funcy' is defined or replace it with appropriate preprocessing
-    # For now, let's assume 'funcy' is an identity function
-    series_w = np.dstack([im for im in series_n])
-    series_w = np.transpose(series_w[:, :, :, np.newaxis], [2, 0, 1, 3])
+        series_w = np.dstack([funcy(im) for im in series_n])
+        series_w = np.transpose(series_w[:, :, :, np.newaxis], [2, 0, 1, 3])
 
     predictions = model_selection.predict(series_w)
     slice_label = get_slice_number_from_prediction(predictions)
     print(slice_label)
-
+      
     # Determine threshold filter
     if threshold_filter == "Otsu":
         threshold_filter_enum = ThresholdFilter.Otsu
@@ -211,11 +197,13 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
     else:
         raise ValueError(f"Invalid threshold filter: {threshold_filter}")
 
+    print(f'Threshold filter: {threshold_filter_enum}')
+
     if ranges:
-        slice_interval = list(range(88, 108))
+        slice_interval = list(range(88,108))
         results = []
         for slice_range in slice_interval:
-            circumference, contour_array, mip_array, spacing, largest_component_array = process_and_visualize(
+            circumference, contour_array, mip_array,spacing,largest_component_array = process_and_visualize(
                 registered_path,
                 slice_num=slice_range,
                 theta_x=theta_x,
@@ -229,8 +217,10 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
             )
             results.append(circumference)
 
-    # Initialize lists to store all measurements and masks
     all_measurements = []
+
+    circumference = 1000
+    k = 0
     volumes = {
         'posterior_left': 0,
         'posterior_right': 0,
@@ -238,17 +228,7 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
         'anterior_right': 0,
         'total': 0
     }
-    volume_masks = []
-    quadrant_masks = {
-        'posterior_left': [],
-        'posterior_right': [],
-        'anterior_left': [],
-        'anterior_right': []
-    }
 
-    # Process slices until circumference condition is met
-    circumference = 1000
-    k = 0
     while circumference > 100:
         try:
             circumference, contour_array, mip_array, spacing, largest_component_array = process_and_visualize(
@@ -263,28 +243,28 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
                 threshold_filter=threshold_filter_enum,
                 mip_slices=mip_slices
             )
-        except Exception as e:
-            print(f'Error with circumference calculation: {e}')
-            df_results = pd.DataFrame(all_measurements)
-            summary_stats = {
-                'patient_id': patient_id,
-                'circumference_median': df_results['circumference_mm'].median(),
-                'circumference_mean': df_results['circumference_mm'].mean(),
-                'circumference_std': df_results['circumference_mm'].std(),
-                'area_median': df_results['area_cm2'].median(),
-                'area_mean': df_results['area_cm2'].mean(),
-                'area_std': df_results['area_cm2'].std()
-            }
-            # Save detailed results
-            df_results.to_csv(os.path.join(output_dir, 'detailed_measurements.csv'), index=False)
-
-            # Save summary statistics
-            pd.DataFrame([summary_stats]).to_csv(os.path.join(output_dir, 'summary_statistics.csv'), index=False)
+        except:
+            print('Error with circumference calculation. Saving results...')
+            if len(all_measurements) > 0:
+                df_results = pd.DataFrame(all_measurements) 
+                summary_stats = {
+                    'patient_id': patient_id,
+                    'circumference_median': df_results['circumference_mm'].median(),
+                    'circumference_mean': df_results['circumference_mm'].mean(),
+                    'circumference_std': df_results['circumference_mm'].std(),
+                    'area_median': df_results['area_cm2'].median(),
+                    'area_mean': df_results['area_cm2'].mean(),
+                    'area_std': df_results['area_cm2'].std()
+                }
+                # Save detailed results
+                df_results.to_csv(os.path.join(output_dir, 'detailed_measurements.csv'), index=False)
+                # Save summary statistics
+                pd.DataFrame([summary_stats]).to_csv(os.path.join(output_dir, 'summary_statistics.csv'), index=False)
             return circumference
 
         k += 1
 
-        # Calculate measurements
+        # Calculate basic measurements
         y_indices, x_indices = np.where(contour_array > 0)
 
         # Calculate bounding box
@@ -293,16 +273,17 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
         miny_idx = np.min(y_indices)
         maxy_idx = np.max(y_indices)
 
-        # Calculate dimensions
+        height, width = largest_component_array.shape
+
+        # Dimensions in mm
         width_mm = (maxx_idx - minx_idx) * spacing[0]
         length_mm = (maxy_idx - miny_idx) * spacing[1]
+
         center_x_idx = (minx_idx + maxx_idx) // 2
         center_y_idx = (miny_idx + maxy_idx) // 2
 
-        # Calculate areas and quadrants
-        height, width = largest_component_array.shape
+        # Define quadrant masks
         Y, X = np.ogrid[:height, :width]
-
         upper_mask = Y < center_y_idx
         lower_mask = Y >= center_y_idx
         left_mask = X < center_x_idx
@@ -313,7 +294,7 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
         lower_left_mask = lower_mask & left_mask
         lower_right_mask = lower_mask & right_mask
 
-        # Calculate quadrant areas
+        # Quadrant areas in cm²
         area_upper_left = np.sum(largest_component_array & upper_left_mask) * spacing[0] * spacing[1] / 100
         area_upper_right = np.sum(largest_component_array & upper_right_mask) * spacing[0] * spacing[1] / 100
         area_lower_left = np.sum(largest_component_array & lower_left_mask) * spacing[0] * spacing[1] / 100
@@ -321,20 +302,10 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
         area_pixels = np.sum(largest_component_array)
 
         z_spacing_cm = spacing[2] / 10
-
-        # Convert area to square millimeters
         area_mm2 = area_pixels * spacing[0] * spacing[1]
         area_cm2 = area_mm2 / 100
 
-        # Store the quadrant areas in a dictionary
-        quadrant_areas = {
-            'posterior_left': area_upper_left,
-            'posterior_right': area_upper_right,
-            'anterior_left': area_lower_left,
-            'anterior_right': area_lower_right
-        }
-
-        # Calculate volumes for this slice
+        # Volume contribution for this slice
         slice_contribution = {
             'posterior_left': area_upper_left * z_spacing_cm,
             'posterior_right': area_upper_right * z_spacing_cm,
@@ -343,278 +314,225 @@ def main(img_path, age, output_path, neonatal, months, ranges, theta_x=0, theta_
             'total': area_cm2 * z_spacing_cm
         }
 
-        # Add this slice's contribution to total volumes
         for key in volumes:
-            volumes[key] += slice_contribution[key]
+            volumes[key] += slice_contribution.get(key, 0)
 
-        # Append the largest component array to volume masks
-        volume_masks.append(largest_component_array)
+        def find_contour_line_intersections(cx, cy, angle_degs, contour_array, spacing):
+            """
+            Find intersection points between a line and the brain contour with symmetric angle handling.
+            """
+            height, width = contour_array.shape
+            angle_rads = np.radians(angle_degs)
 
-        # Append quadrant masks
-        quadrant_masks['posterior_left'].append(largest_component_array & upper_left_mask)
-        quadrant_masks['posterior_right'].append(largest_component_array & upper_right_mask)
-        quadrant_masks['anterior_left'].append(largest_component_array & lower_left_mask)
-        quadrant_masks['anterior_right'].append(largest_component_array & lower_right_mask)
+            # Get contour points
+            y_indices, x_indices = np.where(contour_array > 0)
+            contour_points = np.column_stack((x_indices, y_indices))  # x, y
+            center = np.array([cx, cy])
 
-        # (Visualization code remains the same)
+            vectors = contour_points - center
+            point_angles = np.arctan2(vectors[:, 1], vectors[:, 0])
+            # Normalize angles to [0, 2π]
+            point_angles = np.where(point_angles < 0, point_angles + 2*np.pi, point_angles)
+            target_angle = angle_rads if angle_rads >= 0 else angle_rads + 2*np.pi
 
-        # Store measurements
+            # Find points with angles closest to target_angle and target_angle + π
+            angle_diff = np.minimum(
+                np.abs(point_angles - target_angle),
+                np.abs(point_angles - (target_angle + 2*np.pi))
+            )
+            opposite_diff = np.minimum(
+                np.abs(point_angles - (target_angle + np.pi)),
+                np.abs(point_angles - (target_angle - np.pi))
+            )
+
+            point1_idx = np.argmin(angle_diff)
+            point2_idx = np.argmin(opposite_diff)
+
+            x1, y1 = contour_points[point1_idx]
+            x2, y2 = contour_points[point2_idx]
+
+            dx_mm = (x2 - x1) * spacing[0]
+            dy_mm = (y2 - y1) * spacing[1]
+            length_mm = np.sqrt(dx_mm**2 + dy_mm**2)
+
+            return (x1, y1, x2, y2, length_mm)
+        
+        result_60 = find_contour_line_intersections(center_x_idx, center_y_idx, 60, contour_array, spacing)
+        result_120 = find_contour_line_intersections(center_x_idx, center_y_idx, 120, contour_array, spacing)
+
+        plt.ioff()
+        fig = plt.figure(figsize=(20, 10))
+        ax1 = plt.subplot(1, 2, 1)
+        ax2 = plt.subplot(1, 2, 2)
+
+        ax1.imshow(mip_array, cmap='gray')
+        ax1.contour(contour_array, colors='r')
+
+        ax1.plot([minx_idx, maxx_idx], [center_y_idx, center_y_idx], 'b-', linewidth=2, label=f'Width {width_mm} mm')
+        ax1.plot([center_x_idx, center_x_idx], [miny_idx, maxy_idx], 'g-', linewidth=2, label=f'Length {length_mm:} mm')
+
+        if result_60 is not None:
+            x1_60, y1_60, x2_60, y2_60, diag_60_mm = result_60
+            ax1.plot([x1_60, x2_60], [y1_60, y2_60], 'y--', linewidth=2, 
+                    label=f'30° from Vertical (1): {diag_60_mm:.2f} mm')
+
+        if result_120 is not None:
+            x1_120, y1_120, x2_120, y2_120, diag_120_mm = result_120
+            ax1.plot([x1_120, x2_120], [y1_120, y2_120], 'c--', linewidth=2,
+                    label=f'30° from Vertical (2): {diag_120_mm:.2f} mm')
+            
+        ax1.set_title(f"Head Circumference: {circumference:.3f}")
+        ax1.legend()
+
+        # Quadrant plot
+        ax2.imshow(mip_array, cmap='gray')
+        ax2.contour(contour_array, colors='r')
+
+        quadrant_mask = np.zeros((height, width, 3), dtype=np.uint8)
+        quadrant_colors = {
+            'posterior_left': [255, 0, 0],
+            'posterior_right': [0, 255, 0],
+            'anterior_left': [0, 0, 255],
+            'anterior_right': [255, 255, 0]
+        }
+        quadrant_masks = {
+            'posterior_left': upper_left_mask,
+            'posterior_right': upper_right_mask,
+            'anterior_left': lower_left_mask,
+            'anterior_right': lower_right_mask
+        }
+
+        for qname, qmask in quadrant_masks.items():
+            quadrant_mask[qmask & (largest_component_array > 0)] = quadrant_colors[qname]
+
+        ax2.imshow(quadrant_mask, alpha=0.1)
+        for qname, qmask in quadrant_masks.items():
+            if np.sum(qmask & (largest_component_array > 0)) > 0:
+                y_coords, x_coords = np.where(qmask & (largest_component_array > 0))
+                x_pos = np.mean(x_coords)
+                y_pos = np.mean(y_coords)
+                ax2.text(x_pos, y_pos, f'{qname}\n{(np.sum(qmask & (largest_component_array > 0)) * spacing[0] * spacing[1] / 100):.2f} cm²',
+                        color='white', fontsize=8, ha='center', va='center')
+
+        ax2.set_title("Head Contour Split into 4 Quadrants")
+        ax2.axis('off')
+
+        plt.tight_layout()
+        plot_filename = f'combined_visualization_{k}_{os.path.basename(registered_path)}.png'
+        plt.savefig(os.path.join(output_dir, plot_filename))
+        plt.close(fig)
+
+        # -------------------------------------------
+        # Integration of the image styling steps here
+        # -------------------------------------------
+        # Convert mip_array to BGR
+        mip_normalized = (mip_array / np.max(mip_array) * 255).astype(np.uint8)
+        bgr = cv2.cvtColor(mip_normalized, cv2.COLOR_GRAY2BGR)
+
+        # Create alpha channel from contour_array
+        alpha = (contour_array > 0).astype(np.uint8) * 255
+
+        # Now apply the transformations as in your snippet
+        contours_cv = cv2.findContours(alpha, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        contours_cv = contours_cv[0] if len(contours_cv) == 2 else contours_cv[1]
+
+        if len(contours_cv) > 0:
+            big_contour = max(contours_cv, key=cv2.contourArea)
+
+            # Smooth contour
+            peri = cv2.arcLength(big_contour, True)
+            big_contour = cv2.approxPolyDP(big_contour, 0.001 * peri, True)
+
+            # Draw white filled contour on black background
+            contour_img = np.zeros_like(alpha)
+            cv2.drawContours(contour_img, [big_contour], 0, 255, -1)
+
+            # Dilate
+            kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (40,40))
+            dilate = cv2.morphologyEx(contour_img, cv2.MORPH_DILATE, kernel)
+
+            # Edge outline
+            edge = cv2.Canny(dilate, 0, 200)
+            # Thicken edge slightly by blurring
+            edge = cv2.GaussianBlur(edge, (0,0), sigmaX=0.3, sigmaY=0.3)
+
+            # White background
+            result_styled = np.full_like(bgr, (255,255,255))
+
+            # Invert dilated image and blur for shadow
+            dilate_inv = 255 - dilate
+            dilate_inv = cv2.GaussianBlur(dilate_inv, (0,0), sigmaX=21, sigmaY=21)
+            dilate_inv = cv2.merge([dilate_inv,dilate_inv,dilate_inv])
+
+            # Overlay blurred dilated area (shadow)
+            result_styled[dilate_inv>0] = dilate_inv[dilate_inv>0]
+
+            # Overlay dilated white region
+            result_styled[dilate==255] = (255,255,255)
+
+            # Overlay BGR where contour
+            result_styled[contour_img==255] = bgr[contour_img==255]
+
+            # Overlay edge
+            result_styled[edge>0] = (0,0,0)
+
+            final_styled_filename = f'final_styled_{k}_{os.path.basename(registered_path)}.png'
+            cv2.imwrite(os.path.join(output_dir, final_styled_filename), result_styled)
+        # -------------------------------------------
+
+        longer_diag = 0
+        smaller_diag = 0
+        if result_60 is not None and result_120 is not None:
+            diag_60_mm = result_60[-1]
+            diag_120_mm = result_120[-1]
+            longer_diag = max(diag_60_mm, diag_120_mm)
+            smaller_diag = min(diag_60_mm, diag_120_mm)
+        else:
+            diag_60_mm = 0
+            diag_120_mm = 0
+
+        CVAI = ((longer_diag - smaller_diag)/longer_diag * 100) if longer_diag != 0 else 0
+
         measurements = {
             'patient_id': patient_id,
             'iteration': k,
-            'slice_number': slice_label + k,
+            'slice_number': slice_label+k,
             'circumference_mm': circumference,
             'width_mm': width_mm,
             'length_mm': length_mm,
+            'diagonal 1 (60 degree)': diag_60_mm,
+            'diagonal 2 (120 degree)': diag_120_mm,
+            'CVAI': CVAI,
             'area_cm2': area_cm2,
-            'cephalic_index': (width_mm / length_mm) * 100,
-            'posterior_left_area_cm2': area_upper_left,
-            'posterior_right_area_cm2': area_upper_right,
-            'anterior_left_area_cm2': area_lower_left,
-            'anterior_right_area_cm2': area_lower_right,
-            # Add accumulated volumes up to this slice
-            'total_volume_cm3': volumes['total'],
-            'posterior_left_volume_cm3': volumes['posterior_left'],
-            'posterior_right_volume_cm3': volumes['posterior_right'],
-            'anterior_left_volume_cm3': volumes['anterior_left'],
-            'anterior_right_volume_cm3': volumes['anterior_right'],
-            # Add this slice's volume contribution
-            'slice_volume_cm3': slice_contribution['total'],
-            'slice_posterior_left_volume_cm3': slice_contribution['posterior_left'],
-            'slice_posterior_right_volume_cm3': slice_contribution['posterior_right'],
-            'slice_anterior_left_volume_cm3': slice_contribution['anterior_left'],
-            'slice_anterior_right_volume_cm3': slice_contribution['anterior_right']
+            'cephalic_index': (width_mm / length_mm) * 100 if length_mm != 0 else np.nan,
+            'upper_left_area_cm2': area_upper_left,
+            'upper_right_area_cm2': area_upper_right,
+            'lower_left_area_cm2': area_lower_left,
+            'lower_right_area_cm2': area_lower_right,
         }
         all_measurements.append(measurements)
 
-# After processing all slices, create 3D visualization
-  # After processing all slices, create 3D visualization
-    if volume_masks:
-        # Stack the volume masks to create a 3D array
-        volume_mask_3d = np.stack(volume_masks, axis=0)  # Shape: (k, H, W)
+        if slice_label+k == image_array.shape[2]:
+            break
 
-        # Stack quadrant masks
-        quadrant_masks_3d = {}
-        for quadrant in quadrant_masks:
-            quadrant_masks_3d[quadrant] = np.stack(quadrant_masks[quadrant], axis=0)  # Shape: (k, H, W)
+    if len(all_measurements) > 0:
+        df_results = pd.DataFrame(all_measurements)
+        summary_stats = {
+            'patient_id': patient_id,
+            'circumference_median': df_results['circumference_mm'].median(),
+            'circumference_mean': df_results['circumference_mm'].mean(),
+            'circumference_std': df_results['circumference_mm'].std(),
+            'area_median': df_results['area_cm2'].median(),
+            'area_mean': df_results['area_cm2'].mean(),
+            'area_std': df_results['area_cm2'].std(),
+            **volumes
+        }
+        df_results.to_csv(os.path.join(output_dir, 'detailed_measurements.csv'), index=False)
 
-        # Create a combined 3D array where each voxel is labeled according to its quadrant
-        quadrant_volume = np.zeros_like(volume_mask_3d, dtype=np.uint8)
-
-        quadrant_volume[quadrant_masks_3d['posterior_left'] > 0] = 1
-        quadrant_volume[quadrant_masks_3d['posterior_right'] > 0] = 2
-        quadrant_volume[quadrant_masks_3d['anterior_left'] > 0] = 3
-        quadrant_volume[quadrant_masks_3d['anterior_right'] > 0] = 4
-
-        # Now, create a full volume array of the same shape as mri_volume
-        mri_volume = image_array  # Use the full MRI volume data without normalization
-
-        mri_shape = mri_volume.shape  # Shape: (total_slices, H, W)
-        quadrant_volume_full = np.zeros(mri_shape, dtype=np.uint8)  # Initialize full-sized quadrant volume
-
-        # Insert the quadrant_volume into quadrant_volume_full at the correct slice positions
-        start_slice = slice_label
-        end_slice = slice_label + k
-
-        # Ensure we don't exceed the MRI volume dimensions
-        end_slice = min(end_slice, mri_shape[0])
-        quadrant_slices = quadrant_volume[:end_slice - start_slice]
-
-        quadrant_volume_full[start_slice:end_slice, :, :] = quadrant_slices
-
-        # Ensure that quadrant_volume_full has non-zero values
-        if np.count_nonzero(quadrant_volume_full) == 0:
-            print("No voxels found in the quadrant_volume_full array.")
-        else:
-
-            fig = go.Figure()
-
-            # Create coordinate grids
-            z_dim, y_dim, x_dim = mri_volume.shape
-            x_grid, y_grid, z_grid = np.meshgrid(
-                np.arange(x_dim),
-                np.arange(y_dim),
-                np.arange(z_dim),
-                indexing='ij'
-            )
-
-            # Flatten the grids and MRI volume for plotting
-            x_flat = x_grid.flatten()
-            y_flat = y_grid.flatten()
-            z_flat = z_grid.flatten()
-            mri_flat = mri_volume.flatten()
-
-            # Plot the MRI data as a volume
-            fig.add_trace(go.Volume(
-                x=x_flat,
-                y=y_flat,
-                z=z_flat,
-                value=mri_flat,
-                opacity=0.1,  # Adjust for desired transparency
-                surface_count=15,
-                colorscale='Gray',
-                name='MRI Data',
-                showscale=False
-            ))
-
-            # Overlay the quadrant masks
-            '''
-            for quadrant_label, color in zip([1, 2, 3, 4], ['red', 'green', 'blue', 'yellow']):
-                mask = (quadrant_volume_full == quadrant_label)
-                z_mask, y_mask, x_mask = np.nonzero(mask)
-                fig.add_trace(go.Scatter3d(
-                    x=x_mask,
-                    y=y_mask,
-                    z=z_mask,
-                    mode='markers',
-                    marker=dict(
-                        size=2,
-                        color=color,
-                        opacity=0.5,
-                    ),
-                    name=f'Quadrant {quadrant_label}'
-                ))
-            '''
-
-            fig.update_layout(
-                scene=dict(
-                    xaxis=dict(title='X', showbackground=False),
-                    yaxis=dict(title='Y', showbackground=False),
-                    zaxis=dict(title='Z', showbackground=False),
-                    aspectmode='data'
-                ),
-                title='3D Volume Rendering of MRI with Quadrants',
-                legend=dict(
-                    x=0.8,
-                    y=0.9
-                )
-            )
-
-            # Save the figure
-            fig.write_html(os.path.join(output_dir, '3D_volume_rendering.html'))
-            print("3D visualization saved as '3D_volume_rendering.html'.")
-            """
-            # After processing all slices, create 3D visualization
-        if volume_masks:
-        # Stack the volume masks to create a 3D array
-        volume_mask_3d = np.stack(volume_masks, axis=0)
-
-        # Stack quadrant masks
-        quadrant_masks_3d = {}
-        for quadrant in quadrant_masks:
-            quadrant_masks_3d[quadrant] = np.stack(quadrant_masks[quadrant], axis=0)
-
-        # Create a combined 3D array where each voxel is labeled according to its quadrant
-        quadrant_volume = np.zeros_like(volume_mask_3d, dtype=np.uint8)
-
-        quadrant_volume[quadrant_masks_3d['posterior_left'] > 0] = 1
-        quadrant_volume[quadrant_masks_3d['posterior_right'] > 0] = 2
-        quadrant_volume[quadrant_masks_3d['anterior_left'] > 0] = 3
-        quadrant_volume[quadrant_masks_3d['anterior_right'] > 0] = 4
-
-        # Ensure that quadrant_volume has non-zero values
-    if np.count_nonzero(quadrant_volume) == 0:
-        print("No voxels found in the quadrant_volume array.")
-    else:
-        # Normalize MRI data for visualization
-        mri_volume = image_array.astype(np.float32)
-        mri_volume = (mri_volume - mri_volume.min()) / (mri_volume.max() - mri_volume.min())
-
-        # Crop MRI data to match the dimensions of quadrant_volume
-        mri_volume_cropped = mri_volume[slice_label:slice_label + k, :, :]
-
-        # Verify dimensions match
-        if mri_volume_cropped.shape != quadrant_volume.shape:
-            print("Dimension mismatch between MRI data and quadrant volume.")
-        else:
-            # Create the MRI volume plot
-
-            fig = go.Figure()
-
-            # Create coordinate grids
-            z_dim, y_dim, x_dim = quadrant_volume.shape
-            x_grid = np.arange(x_dim)
-            y_grid = np.arange(y_dim)
-            z_grid = np.arange(z_dim)
-
-            # Plot the MRI data as a volume
-            fig.add_trace(go.Volume(
-                x=x_grid,
-                y=y_grid,
-                z=z_grid,
-                value=mri_volume_cropped.flatten(),
-                opacity=0.1,  # Adjust for desired transparency
-                surface_count=10,
-                colorscale='Gray',
-                name='MRI Data'
-            ))
-
-            # Overlay the quadrant masks
-            for quadrant_label, color in zip([1, 2, 3, 4], ['red', 'green', 'blue', 'yellow']):
-                mask = (quadrant_volume == quadrant_label)
-                z_mask, y_mask, x_mask = np.nonzero(mask)
-                fig.add_trace(go.Scatter3d(
-                    x=x_mask,
-                    y=y_mask,
-                    z=z_mask,
-                    mode='markers',
-                    marker=dict(
-                        size=2,
-                        color=color,
-                        opacity=0.5,
-                    ),
-                    name=f'Quadrant {quadrant_label}'
-                ))
-
-            fig.update_layout(
-                scene=dict(
-                    xaxis_title='X',
-                    yaxis_title='Y',
-                    zaxis_title='Z',
-                    aspectmode='data'
-                ),
-                title='3D Volume Rendering of MRI with Quadrants'
-            )
-
-            # Save the figure
-            fig.write_html(os.path.join(output_dir, '3D_volume_rendering.html'))
-            print("3D visualization saved as '3D_volume_rendering.html'.")
-            """
- 
-
-
-    # Create DataFrame and save results
-    df_results = pd.DataFrame(all_measurements)
-    summary_stats = {
-        'patient_id': patient_id,
-        'circumference_median': df_results['circumference_mm'].median(),
-        'circumference_mean': df_results['circumference_mm'].mean(),
-        'circumference_std': df_results['circumference_mm'].std(),
-        'area_median': df_results['area_cm2'].median(),
-        'area_mean': df_results['area_cm2'].mean(),
-        'area_std': df_results['area_cm2'].std()
-    }
-
-    # Save detailed results
-    df_results.to_csv(os.path.join(output_dir, 'detailed_measurements.csv'), index=False)
-
-    # Save summary statistics
-    pd.DataFrame([summary_stats]).to_csv(os.path.join(output_dir, 'summary_statistics.csv'), index=False)
+        # Save summary statistics
+        pd.DataFrame([summary_stats]).to_csv(os.path.join(output_dir, 'summary_statistics.csv'), index=False)
     return circumference
 
-
-'''
-if __name__ == "__main__":    
-    path = '/home/philip-mattisson/Desktop/data/sub-pixar066_anat_sub-pixar066_T1w.nii.gz'
-    age = 35
-    output = '/home/philip-mattisson/Desktop/data/V2Out'
-
-    result = main(path, age, output,False)
-    if result:
-        print(f"Calculated Head Circumference: {result:.2f} mm")
-    else:
-        print("Failed to process image.")
-'''
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Calculate brain perimeter from MRI image.")
     parser.add_argument("img_path", type=str, help="Path to the MRI image file")
@@ -622,7 +540,7 @@ if __name__ == "__main__":
     parser.add_argument("output_path", type=str, help="Path to the output folder")
     parser.add_argument("--neonatal", action="store_true", help="Flag to indicate if the subject is neonatal")
     parser.add_argument("--months", action="store_true", help="Flag to indicate if age is specified in months")
-    parser.add_argument("--ranges", action = "store_true", help='flag to indicate use of ranges instead of slice picker') 
+    parser.add_argument("--ranges", action="store_true", help='flag to indicate use of ranges instead of slice picker') 
     parser.add_argument("--theta_x", type=float, default=0, help="Rotation angle around x-axis")
     parser.add_argument("--theta_y", type=float, default=0, help="Rotation angle around y-axis")
     parser.add_argument("--theta_z", type=float, default=0, help="Rotation angle around z-axis")
@@ -632,9 +550,10 @@ if __name__ == "__main__":
     parser.add_argument("--threshold_filter", type=str, default="Otsu", choices=["Otsu", "Binary"], help="Threshold filter method")
     parser.add_argument("--mip_slices", type=int, default=5, help="Number of slices for maximum intensity projection")
     args = parser.parse_args()
-    
-    result = main(args.img_path, args.age, args.output_path, args.neonatal,args.months,
-            args.ranges,
+
+
+    result = main(args.img_path, args.age, args.output_path, args.neonatal, args.months,
+                  args.ranges,
                   theta_x=args.theta_x, theta_y=args.theta_y, theta_z=args.theta_z,
                   conductance_parameter=args.conductance_parameter,
                   smoothing_iterations=args.smoothing_iterations,
@@ -647,4 +566,3 @@ if __name__ == "__main__":
         print(f'circumference {result}')
     else:
         print("Failed to process image.")
-

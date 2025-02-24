@@ -14,8 +14,8 @@ from skimage.transform import resize
 import functools
 import ants
 import matplotlib.pyplot as plt
-from intensity_normalization.typing import Modality, TissueType
-from intensity_normalization.normalize.zscore import ZScoreNormalize
+#from intensity_normalization.typing import Modality, TissueType
+#from intensity_normalization.normalize.zscore import ZScoreNormalize
 import subprocess
 import matplotlib
 matplotlib.use('Agg')
@@ -30,7 +30,7 @@ from shapely.ops import split
 from shapely.affinity import scale
 from matplotlib.colors import ListedColormap
 import matplotlib.patches as mpatches
-from mips import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
+from mipsTes import process_and_visualize, ThresholdFilter,length_of_contour_with_spacing,distance_2d_with_spacing,distance_2d_with_spacing
 
 def register_images(fixed_image_path, moving_image_path):
     fixed_image = ants.image_read(fixed_image_path)
@@ -115,7 +115,7 @@ def select_template_based_on_age(age, neonatal,months):
         age_ranges = {
             "../shared_data/mni_templates/nihpd_asym_04.5-08.5_t1w.nii" : {"min_age":3, "max_age":7},
                 "../shared_data/mni_templates/nihpd_asym_07.5-13.5_t1w.nii": {"min_age":8, "max_age":13},
-                "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":35}}
+                "../shared_data/mni_templates/nihpd_asym_13.0-18.5_t1w.nii": {"min_age":14, "max_age":100}}
         for golden_file_path, age_values in age_ranges.items():
             if age_values['min_age'] <= int(age) and int(age) <= age_values['max_age']: 
                 print(golden_file_path)
@@ -208,7 +208,7 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
         slice_interval = list(range(88,108))
         results = []
         for slice_range in slice_interval:
-            circumference, contour_array, mip_array,spacing,largest_component_array = process_and_visualize(
+            circumference, contour_array, mip_array,spacing,largest_component_array,smoothened = process_and_visualize(
                 registered_path,
                 slice_num=slice_range,
                 theta_x=theta_x,
@@ -237,7 +237,7 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
 
     while circumference > 100:
         try:
-            circumference, contour_array, mip_array, spacing, largest_component_array = process_and_visualize(
+            circumference, contour_array, mip_array, spacing, largest_component_array,smoothened = process_and_visualize(
                 registered_path,
                 slice_num=slice_label + k,
                 theta_x=theta_x,
@@ -269,6 +269,14 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
             return circumference
 
         k += 1
+        
+        smoothened_array = np.zeros_like(contour_array)
+        # Draw all smoothened contours onto the empty array
+        for contour in smoothened:
+            cv2.drawContours(smoothened_array, [contour], -1, 1, 1)  # -1 means draw all contours, 1 is color, 1 is thickness
+
+        contour_array = smoothened_array
+        
 
         # Calculate basic measurements
         y_indices, x_indices = np.where(contour_array > 0)
@@ -447,7 +455,8 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
 
         plt.tight_layout()
         plot_filename = f'combined_visualization_{k}_{os.path.basename(registered_path)}.png'
-        plt.savefig(os.path.join(output_dir, plot_filename))
+        if k == 1:
+            plt.savefig(os.path.join(output_dir, plot_filename))
         plt.close(fig)
         longer_diag = max(diag_60_mm,diag_120_mm)
         smaller_diag = min(diag_60_mm,diag_120_mm)
@@ -470,8 +479,9 @@ def main(img_path, age, output_path, neonatal,months,ranges,theta_x=0, theta_y=0
             'lower_right_area_cm2': area_lower_right,
         }
         all_measurements.append(measurements)
-        print(slice_label+k)
-        print(image_array.shape[2])
+
+        if slice_label+k == image_array.shape[2]:
+            break
 
     if len(all_measurements) > 0:
         df_results = pd.DataFrame(all_measurements)
@@ -505,7 +515,7 @@ if __name__ == "__main__":
     parser.add_argument("--conductance_parameter", type=float, default=3.0, help="Conductance parameter for anisotropic diffusion")
     parser.add_argument("--smoothing_iterations", type=int, default=5, help="Number of smoothing iterations")
     parser.add_argument("--time_step", type=float, default=0.0625, help="Time step for anisotropic diffusion")
-    parser.add_argument("--threshold_filter", type=str, default="Binary", choices=["Otsu", "Binary"], help="Threshold filter method")
+    parser.add_argument("--threshold_filter", type=str, default="Otsu", choices=["Otsu", "Binary"], help="Threshold filter method")
     parser.add_argument("--mip_slices", type=int, default=5, help="Number of slices for maximum intensity projection")
     args = parser.parse_args()
     

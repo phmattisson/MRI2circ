@@ -17,3 +17,4 @@ intensity-normalization[ants]
 jupyter
 wandb
 matplotlib-label-lines
+shapely

@@ -54,7 +54,7 @@ def process_and_visualize(image_path, slice_num, theta_x=0, theta_y=0, theta_z=0
     if threshold_filter == ThresholdFilter.Otsu:
         thresholded = sitk.OtsuThreshold(smooth_slice)
     else:
-        thresholded = sitk.BinaryThreshold(smooth_slice, lowerThreshold=0, upperThreshold=40)
+        thresholded = sitk.BinaryThreshold(smooth_slice, lowerThreshold=0, upperThreshold=10)
 
     # Hole filling
     hole_filling = sitk.BinaryGrindPeak(thresholded)
@@ -105,11 +105,13 @@ def distance_2d_with_spacing(p1, p2, x_spacing, y_spacing):
         (x_spacing * (p1[0] - p2[0])) ** 2 + (y_spacing * (p1[1] - p2[1])) ** 2
     )
 
-'''
+
+
 if __name__ == "__main__":
     # Example usage
-    circumference, contour, mip = process_and_visualize(
-        '/Users/philipmattisson/offline/OfflineCentile/mri2circV2/test_data/testoutput/sub-CC00143BN12_ses-47600_T1w.nii/registered.nii.gz',
+    circumference, contour, mip, spacing,largest_component_array= process_and_visualize(
+        #'/Users/philipmattisson/offline/OfflineCentile/mri2circV2/test_data/testoutput/sub-CC00143BN12_ses-47600_T1w.nii/registered.nii.gz',
+        "/Users/philipmattisson/offline/OfflineCentile/mri2circV2/MRI2circ/output/outlierDHCP/registered.nii.gz",
         slice_num=149,
         theta_x=0,
         theta_y=0,
@@ -120,6 +122,28 @@ if __name__ == "__main__":
         threshold_filter=ThresholdFilter.Otsu,
         mip_slices=5
     )
+    plt.figure(figsize=(12, 4))
 
-    print(f"Calculated Head Circumference: {circumference:.2f} mm")
-'''
+    # Plot 1: Original MIP
+    plt.subplot(131)
+    plt.imshow(mip, cmap='gray')
+    plt.title('Maximum Intensity Projection')
+    plt.axis('off')
+
+    # Plot 2: Contour overlay
+    plt.subplot(132)
+    plt.imshow(mip, cmap='gray')
+    plt.imshow(contour, cmap='hot', alpha=0.3)
+    plt.title(f'Contour (Circumference: {circumference:.2f} mm)')
+    plt.axis('off')
+
+    # Plot 3: Binary mask with contour
+    plt.subplot(133)
+    plt.imshow(largest_component_array, cmap='gray')
+    plt.imshow(contour, cmap='hot', alpha=0.3)
+    plt.title('Binary Mask with Contour')
+    plt.axis('off')
+
+    plt.tight_layout()
+    plt.show()
+        
